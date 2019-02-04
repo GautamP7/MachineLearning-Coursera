@@ -1,0 +1,90 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Gautam"
+date: "3 February 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, results = "hold")
+```
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website [here](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har) (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv).
+
+The test data are available [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv).
+
+The data for this project comes from [this source](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har).  
+
+Full source: Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+## Goal of the project
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## Analysis
+
+The following steps were performed as part of the analysis:  
+1. Loaded the training and test datasets.  
+2. Found the names of columns with missing values in both training and test datasets and merged them as `missingCols`.  
+3. Stored the names of the 1st seven columns of both training and test datasets as `irrCols` as these columns seem irrelevant to our prediction problem.  
+4. Removed the columns in `missingCols` and `irrCols` from both training and test datsets.  
+5. Built a Random Forest classifier with 10-fold cross validation.  
+6. Predicted the class labels of the test examples using the above built Random Forest classifier.
+
+### Data Processing
+```{r, message=FALSE, fig.width=10, fig.height=8}
+# Load the required libraries
+library(caret) # Install caret along with its dependencies 
+
+# Load the training data
+dataTrain <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), na.strings = c("NA","#DIV/0!",""))
+# Load the test data
+dataTest <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), na.strings = c("NA","#DIV/0!",""))
+
+print(paste0("Dimensions of the training set before data processing:", dim(dataTrain)))
+print(paste0("Dimensions of the test set before data processing:", dim(dataTest)))
+
+# Find the names of columns with missing values in training and test datasets
+mcTrain <- colnames(dataTrain)[!complete.cases(t(dataTrain))]
+mcTest <- colnames(dataTest)[!complete.cases(t(dataTest))]
+missingCols <- union(mcTrain, mcTest) # Merging the columns with missing values in both training & test datasets
+irrCols <- union(names(dataTrain)[1:7], rev(names(dataTest))[1]) # Setting the 1st seven columns of both datasets as irrelevant as they do not contribute to the prediction problem
+# Removing the columns that are either irrelevant or have missing values, from both datasets
+dataTrain <- dataTrain[ , -which(names(dataTrain) %in% union(missingCols, irrCols))]
+dataTest <- dataTest[ , -which(names(dataTest) %in% union(missingCols, irrCols))]
+
+print(paste0("Dimensions of the training set after data processing:", dim(dataTrain)))
+print(paste0("Dimensions of the test set after data processing:", dim(dataTest)))
+
+g <- ggplot(dataTrain, aes(classe)) + geom_histogram(stat =  "count", fill = "blue", color = "black") + geom_text(stat="count", aes(label=..count..), vjust=-1) + ggtitle("Count of examples of each class type in the training set") + xlab("Class") + ylab("No. of examples in the training set")
+print(g)
+```
+
+### Building Random Forest model with 10-fold cross validation
+
+I decided to use Random forest classifier because it reduces overfitting and increases accuracy as it is an ensemble method. 
+
+Cross-validation: I've used 10-fold cross validation, where the dataset is split into 10 folds and for each fold in the dataset, the random forest model is built on the remaining 9 folds and tested on the selected fold. The model with the highest accuracy is then selected.
+
+Expected out of sample error: As the out of sample error is the error on the test set, we consider the error on the cross validation set as the out of sample error. 
+```{r}
+set.seed(302)
+model <- train(classe~., dataTrain, method = "rf", 
+               trControl = trainControl(
+                   method = "cv", number = 10, verboseIter = TRUE))
+print(model)
+print(model$finalModel)
+```
+
+### Prediction
+```{r}
+pred <- predict(model, dataTest, type = "raw")
+print("The predicted classes for the test set are: ")
+pred
+```
